@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Решение транспортной задачи</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="container">    
+    <h1 class="text-center"> Лабораторная работа 7 </h1>
+    <h2 class="text-center">Решение транспортной задачи методом северо-западного угла</h2>
+
+    <h3 class="mb-2"> Задача: Необходимо решить транспортную задачу, в которой на вход будут подаваться данные, выполнить оценку погрешности, а после произвести анализ погрешности</h3>
+
+    <div id="fileUploadSection">
+      <h2>Загрузка данных</h2>
+      <input type="file" id="fileInput" class="form-control mb-3" />
+      <button onclick="processDownloadFile()" class="container btn-primary">Загрузить и решить задачу</button>
+    </div>
+  </div>
+
+    <br> </br>
+    
+    <div id="inputData" class="container mt-4"></div>
+
+    <h2 class="container mt-4">Шаги решения</h2>
+    <div id="steps" class="container"></div>
+
+    <h2 class="container mt-4">Итоговая матрица</h2>
+    <table class="container table custom-table" id="resultTable"></table>
+
+    <div class="errors container" id="errors"></div>
+    
+    <br> </br>
+
+    <div class="mt-5">
+      <button id='resetButton ' class="container btn-primary" onclick="resetSolution()">Сбросить решение</button>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    let numSuppliers, numWarehouses;
+    let costMatrix = [], supply = [], demand = [];
+    let result = [];
+
+
+    function processDownloadFile() {
+      const fileInput = document.getElementById('fileInput');
+      const file = fileInput.files[0];
+
+      if (!file) {
+        alert("Пожалуйста, выберите файл.");
+        return;
+      }
+
+      const reader = new FileReader();
+      
+      reader.onload = function(event) {
+        const text = event.target.result;
+        parseCSV(text);
+      };
+
+      reader.readAsText(file);
+    }
+
+    function parseCSV(data) {
+      const rows = data.split('\n').map(row => row.trim()).filter(row => row !== '');
+      const firstRow = rows[0].split(','); 
+
+      numSuppliers = parseInt(firstRow[0]);
+      numWarehouses = parseInt(firstRow[1]);
+
+      if (isNaN(numSuppliers) || isNaN(numWarehouses)) {
+        alert("Ошибка в количестве поставщиков и складов.");
+        return;
+      }
+
+      costMatrix = [];
+      supply = [];
+      demand = [];
+
+      for (let i = 1; i <= numSuppliers; i++) {
+        const row = rows[i].split(',').map(Number);
+        costMatrix.push(row);
+      }
+
+      const supplyRow = rows[numSuppliers + 1].split(',').map(Number);
+      supply = supplyRow;
+
+      const demandRow = rows[numSuppliers + 2].split(',').map(Number);
+      demand = demandRow;
+
+      displayInputData();
+
+      solve();
+    }
+
+    function displayInputData() {
+      let inputDiv = document.getElementById('inputData');
+      inputDiv.innerHTML = '';
+
+      let costTable = `<h3>Стоимость доставки</h3><table class="table table-bordered"><tr><th></th>`;
+      for (let j = 0; j < numWarehouses; j++) {
+        costTable += `<th>Склад ${j + 1}</th>`;
+      }
+      costTable += `</tr>`;
+      for (let i = 0; i < numSuppliers; i++) {
+        costTable += `<tr><th>Поставщик ${i + 1}</th>`;
+        for (let j = 0; j < numWarehouses; j++) {
+          costTable += `<td>${costMatrix[i][j]}</td>`;
+        }
+        costTable += `</tr>`;
+      }
+      costTable += `</table>`;
+      inputDiv.innerHTML += costTable;
+
+      let supplyTable = `<h3>Объемы поставок</h3><table class="table table-bordered"><tr><th>Поставщик</th>`;
+      for (let i = 0; i < numSuppliers; i++) {
+        supplyTable += `<th>Поставщик ${i + 1}</th>`;
+      }
+      supplyTable += `</tr><tr><th>Объем</th>`;
+      for (let i = 0; i < numSuppliers; i++) {
+        supplyTable += `<td>${supply[i]}</td>`;
+      }
+      supplyTable += `</tr></table>`;
+      inputDiv.innerHTML += supplyTable;
+
+      let demandTable = `<h3>Потребности складов</h3><table class="table table-bordered"><tr><th>Склад</th>`;
+      for (let j = 0; j < numWarehouses; j++) {
+        demandTable += `<th>Склад ${j + 1}</th>`;
+      }
+      demandTable += `</tr><tr><th>Потребность</th>`;
+      for (let j = 0; j < numWarehouses; j++) {
+        demandTable += `<td>${demand[j]}</td>`;
+      }
+      demandTable += `</tr></table>`;
+      inputDiv.innerHTML += demandTable;
+    }
+
+    function displayMatrix(matrix) {
+      let table = '<tr><th></th>';
+      for (let j = 0; j < numWarehouses; j++) {
+        table += `<th>Склад ${j + 1}</th>`;
+      }
+      table += `</tr>`;
+      for (let i = 0; i < numSuppliers; i++) {
+        table += `<tr><th>Поставщик ${i + 1}</th>`;
+        for (let j = 0; j < numWarehouses; j++) {
+          table += `<td>${matrix[i][j]}</td>`;
+        }
+        table += `</tr>`;
+      }
+      document.getElementById('steps').innerHTML += `<h4>Текущая матрица после шага:</h4><table class="table table-bordered">${table}</table>`;
+    }
+
+    function solve() {
+      result = [];
+
+      for (let i = 0; i < numSuppliers; i++) {
+        result[i] = [];
+        for (let j = 0; j < numWarehouses; j++) {
+          result[i][j] = 0;
+        }
+      }
+
+      let i = 0, j = 0;
+      let totalCost = 0;
+      let costDetails = []; // Для хранения всех вычислений в нужном формате
+      let stepsDiv = document.getElementById('steps');
+      stepsDiv.innerHTML = '<h3>Шаги решения:</h3>';
+
+      while (i < numSuppliers && j < numWarehouses) {
+        let transportAmount = Math.min(supply[i], demand[j]);
+        result[i][j] = transportAmount;
+        supply[i] -= transportAmount;
+        demand[j] -= transportAmount;
+        let stepCost = transportAmount * costMatrix[i][j];
+        totalCost += stepCost;
+
+        // Записываем умножения в формате "x * y"
+        costDetails.push(`${transportAmount} * ${costMatrix[i][j]}`);
+        stepsDiv.innerHTML += `<p>Поставщик ${i + 1} → Склад ${j + 1}: ${transportAmount} единиц. Стоимость: ${stepCost} ( ${transportAmount} * ${costMatrix[i][j]} )</p>`;
+
+        displayMatrix(result);
+
+        if (supply[i] === 0) {
+          i++;
+        } else if (demand[j] === 0) {
+          j++;
+        }
+      }
+
+      let resultTable = '<tr><th></th>';
+      for (let j = 0; j < numWarehouses; j++) {
+        resultTable += `<th>Склад ${j+1}</th>`;
+      }
+      resultTable += `</tr>`;
+      for (let i = 0; i < numSuppliers; i++) {
+        resultTable += `<tr><th>Поставщик ${i+1}</th>`;
+        for (let j = 0; j < numWarehouses; j++) {
+          resultTable += `<td>${result[i][j]}</td>`;
+        }
+        resultTable += `</tr>`;
+      }
+      document.getElementById('resultTable').innerHTML = resultTable;
+
+      // Выводим итоговую стоимость с промежуточными вычислениями
+      let totalCostCalculation = costDetails.join(' + ');
+      stepsDiv.innerHTML += `<h3>Итоговая стоимость доставки:</h3><h4><strong>Общая стоимость: ${totalCostCalculation} = ${totalCost}</strong></h4>`;
+
+      let errorDetails = `<h3>Погрешности:</h3>`;
+      let totalError = 0;
+      for (let i = 0; i < numSuppliers; i++) {
+        for (let j = 0; j < numWarehouses; j++) {
+          if (result[i][j] > 0) {
+            let error = result[i][j] * 0.05; 
+            totalError += error;
+            errorDetails += `<p>Поставщик ${i+1} → Склад ${j+1}: Погрешность = ${result[i][j]} * 0.05 = ${error.toFixed(2)}</p>`;
+          }
+        }
+      }
+      document.getElementById('errors').innerHTML = errorDetails;
+      document.getElementById('errors').innerHTML += `<h4><strong>Общая погрешность: ${totalError.toFixed(2)}</strong></h4>`;
+    }
+
+    function resetSolution() {
+    numSuppliers = null;
+    numWarehouses = null;
+    costMatrix = [];
+    supply = [];
+    demand = [];
+    result = [];
+    
+    document.getElementById('inputData').innerHTML = '';
+    document.getElementById('resultTable').innerHTML = '';
+    document.getElementById('steps').innerHTML = '';
+    document.getElementById('errors').innerHTML = '';
+}
+
+  </script>
+</body>
+</html>
